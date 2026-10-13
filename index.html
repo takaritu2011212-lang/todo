@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<meta name="description" content="NEXUS - キャラクターと予定を組み立てるオフライン対応タスク管理アプリ">
+<link rel="manifest" href="manifest.json">
+<title>NEXUS | Personal Companion</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">◇</div><div><b>NEXUS</b><small>PERSONAL COMPANION</small></div></div>
+    <div class="profile"><div class="avatar">リ</div><div><b>リオン</b><small><span class="online-dot"></span> オフラインモード対応</small></div></div>
+    <nav>
+      <button class="nav active" data-page="home">⌂ <span>ホーム</span></button>
+      <button class="nav" data-page="tasks">☑ <span>タスク</span><em id="task-count">0</em></button>
+      <button class="nav" data-page="schedule">▦ <span>予定・カレンダー</span></button>
+      <button class="nav" data-page="chat">◉ <span>リオンと会話</span></button>
+      <button class="nav" data-page="settings">⚙ <span>設定</span></button>
+    </nav>
+    <div class="sidebar-bottom"><span class="pulse"></span> LOCAL SYSTEM ACTIVE<small>データはこの端末に保存</small></div>
+  </aside>
+  <main>
+    <header class="topbar"><div><div class="eyebrow">PERSONAL COMMAND CENTER</div><h1 id="page-title">おかえりなさい。</h1></div><div class="top-right"><span class="date-chip" id="today-label"></span><button id="notify-top" class="icon-button" title="通知を有効化">♧</button></div></header>
+    <section id="page-home" class="page active">
+      <div class="hero panel"><div class="hero-copy"><div class="eyebrow cyan">YOUR DAILY PARTNER</div><h2>今日を、少しだけ<br><span>うまく進めよう。</span></h2><p id="hero-message">今日の予定を一緒に整理しよう。まずは一つずつ。</p><button class="primary" data-go="chat">リオンに相談する <span>↗</span></button></div><div class="hero-orb"><div class="orb-ring"></div><div class="orb-avatar">リ</div><span class="orb-label">RION / ONLINE LOCAL</span></div></div>
+      <div class="stats-grid"><div class="stat panel"><small>未完了タスク</small><strong id="stat-open">0</strong><span>今日できることから</span></div><div class="stat panel"><small>今日の予定</small><strong id="stat-events">0</strong><span>時間を味方に</span></div><div class="stat panel"><small>完了タスク</small><strong id="stat-done">0</strong><span>積み重ねが成果になる</span></div></div>
+      <div class="content-grid"><div class="panel section-panel"><div class="section-head"><div><div class="eyebrow">FOCUS LIST</div><h3>今日のタスク</h3></div><button class="text-button" data-go="tasks">すべて見る →</button></div><div id="home-tasks" class="item-list"></div><button class="add-row" data-go="tasks">＋ タスクを追加</button></div><div class="panel section-panel"><div class="section-head"><div><div class="eyebrow">UP NEXT</div><h3>次の予定</h3></div><button class="text-button" data-go="schedule">予定一覧 →</button></div><div id="home-events" class="item-list"></div><button class="add-row" data-go="schedule">＋ 予定を追加</button><div class="rion-note"><div class="mini-avatar">リ</div><p id="daily-quote">「完璧じゃなくていいよ。前に進めたら、それで十分。」<small>— リオン</small></p></div></div></div>
+    </section>
+    <section id="page-tasks" class="page"><div class="panel section-panel"><div class="section-head"><div><div class="eyebrow">TASK MANAGEMENT</div><h3>タスク一覧</h3></div><button class="primary" id="add-task-btn">＋ 新しいタスク</button></div><div class="filter-row"><button class="filter active" data-filter="all">すべて</button><button class="filter" data-filter="open">未完了</button><button class="filter" data-filter="done">完了</button></div><div id="task-list" class="item-list"></div></div></section>
+    <section id="page-schedule" class="page"><div class="panel section-panel"><div class="section-head"><div><div class="eyebrow">SCHEDULE PLANNER</div><h3>予定を組み立てる</h3></div><button class="primary" id="add-event-btn">＋ 予定を追加</button></div><p class="muted">日時を登録すると、この端末のブラウザ通知を予約できます。ブラウザを閉じている間の通知は環境によって制限されます。</p><div id="event-list" class="item-list"></div></div></section>
+    <section id="page-chat" class="page"><div class="chat-layout panel"><div class="chat-head"><div class="avatar">リ</div><div><h3>リオン</h3><small><span class="online-dot"></span> ローカル会話モード</small></div><span class="tag">NO CLOUD</span></div><div class="chat-hint">予定やタスクを自然な言葉で相談してみて。例：「レポートを書くタスクを追加」「今日の予定を教えて」</div><div id="chat-log" class="chat-log" aria-live="polite"></div><div class="quick-prompts"><button>今日の予定を教えて</button><button>未完了タスクを教えて</button><button>タスクを追加したい</button></div><form id="chat-form" class="chat-input"><input id="chat-message" autocomplete="off" placeholder="リオンにメッセージ..." aria-label="メッセージ"><button class="send-button" aria-label="送信">➤</button></form></div></section>
+    <section id="page-settings" class="page"><div class="panel section-panel"><div class="eyebrow">SYSTEM CONFIG</div><h3>設定</h3><div class="setting-row"><div><b>ブラウザ通知</b><small>予定のリマインダーを表示</small></div><button class="primary" id="enable-notify">通知を有効化</button></div><div class="setting-row"><div><b>データ保存</b><small>タスク・予定・会話はこの端末のブラウザ内に保存されます</small></div><span class="tag">LOCAL STORAGE</span></div><div class="setting-row"><div><b>オフライン利用</b><small>一度読み込むと、対応ブラウザではキャッシュから再表示できます</small></div><span class="tag">PWA READY</span></div><div class="setting-row"><div><b>データを書き出す</b><small>バックアップ用のJSONファイルを保存</small></div><button class="secondary" id="export-data">書き出す</button></div><div class="setting-row"><div><b>データを読み込む</b><small>以前のバックアップから復元</small></div><label class="secondary file-label">ファイル選択<input type="file" id="import-data" accept="application/json"></label></div><div class="setting-row danger-row"><div><b>すべてのデータを削除</b><small>この端末に保存されたデータを消去します</small></div><button class="danger" id="clear-data">削除</button></div><p class="muted tiny">NEXUS Web Prototype 0.1 · 外部通信・外部AI APIは使用しません。</p></div></section>
+    <footer> NEXUS <span>·</span> BUILT FOR YOUR NEXT STEP</footer>
+  </main>
+</div>
+<dialog id="task-dialog"><form id="task-form" method="dialog"><div class="modal-head"><h3 id="task-modal-title">タスクを追加</h3><button type="button" class="close-modal" data-close="task-dialog">×</button></div><input type="hidden" id="task-id"><label>タスク名<input id="task-title" required maxlength="120" placeholder="例：レポートを仕上げる"></label><label>期限<input id="task-due" type="datetime-local"></label><label>優先度<select id="task-priority"><option value="normal">通常</option><option value="high">高</option><option value="low">低</option></select></label><label>メモ<textarea id="task-note" rows="2" placeholder="補足があれば"></textarea></label><div class="modal-actions"><button type="button" class="secondary" data-close="task-dialog">キャンセル</button><button class="primary" type="submit">保存する</button></div></form></dialog>
+<dialog id="event-dialog"><form id="event-form" method="dialog"><div class="modal-head"><h3 id="event-modal-title">予定を追加</h3><button type="button" class="close-modal" data-close="event-dialog">×</button></div><input type="hidden" id="event-id"><label>予定名<input id="event-title" required maxlength="120" placeholder="例：企画の打ち合わせ"></label><label>開始日時<input id="event-start" type="datetime-local" required></label><label>終了日時<input id="event-end" type="datetime-local"></label><label>通知タイミング<select id="event-reminder"><option value="0">予定時刻</option><option value="5">5分前</option><option value="15" selected>15分前</option><option value="30">30分前</option><option value="60">1時間前</option></select></label><label>メモ<textarea id="event-note" rows="2"></textarea></label><div class="modal-actions"><button type="button" class="secondary" data-close="event-dialog">キャンセル</button><button class="primary" type="submit">保存する</button></div></form></dialog>
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
+</body></html>
