@@ -49,14 +49,125 @@ function renderStatus(){const c=active().character;$("nx-name").textContent="NEX
 function add(text,me=false){const item={text,me,time:Date.now()};runtime.messages.push(item);runtime.messages=runtime.messages.slice(-100);const d=document.createElement("div");d.className="nx-msg"+(me?" me":"");d.textContent=text;$("nx-log").appendChild(d);$("nx-log").scrollTop=$("nx-log").scrollHeight;save()}
 function renderHistory(){const log=$("nx-log");log.replaceChildren();runtime.messages.slice(-50).forEach(m=>{const d=document.createElement("div");d.className="nx-msg"+(m.me?" me":"");d.textContent=m.text;log.appendChild(d)});if(!runtime.messages.length){add(active().character.greeting||"こんにちは。今日は何を話そうか。")}}
 function chooseNoRepeat(key,list){if(!list.length)return"";const last=runtime.lastResponses[key];let pool=list.filter(x=>x!==last);if(!pool.length)pool=list;const picked=pool[Math.floor(Math.random()*pool.length)];runtime.lastResponses[key]=picked;return picked}
-function pickResponse(category,extra){const b=active();const eligible=(b.responses||[]).filter(r=>r.enabled!==false&&(r.character_id===b.character.id||r.character_id==="*"||!r.character_id)&&Number(r.min_affection||0)<=runtime.affection&&Number(r.max_affection??100)>=runtime.affection);let list=eligible.filter(r=>r.category===category).map(r=>r.response_text).filter(Boolean);if(!list.length)list=eligible.filter(r=>r.category==="general").map(r=>r.response_text).filter(Boolean);if(extra&&extra.length&&!list.length)list=extra;if(!list.length)list=banks[category]||banks.general;return chooseNoRepeat("cat:"+category,list)}
+function eligibleResponse(r){
+ const b=active();
+ if(!r||r.enabled===false||String(r.enabled).toLowerCase()==="false")return false;
+ if(r.character_id&&r.character_id!=="*"&&r.character_id!==b.character.id)return false;
+ if(Number(r.min_affection||0)>runtime.affection||Number(r.max_affection??100)<runtime.affection)return false;
+ const req=String(r.required_flag||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+ const deny=String(r.forbidden_flag||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean);
+ if(req.some(k=>!runtime.flags[k]))return false;
+ if(deny.some(k=>runtime.flags[k]))return false;
+ return true;
+}
+function pickResponse(category,extra){
+ const b=active();
+ let candidates=(b.responses||[]).filter(r=>eligibleResponse(r)&&(r.category===category||r.category==="general"));
+ let list=(extra&&extra.length?extra:candidates.map(r=>r.response_text)).filter(Boolean);
+ if(!list.length)list=banks[category]||banks.general;
+ return chooseNoRepeat("cat:"+category,list);
+}
+function evaluateCondition(expression){
+ const expr=String(expression||"true").trim();
+ if(!expr||/^true$/i.test(expr))return true;
+ if(/^false$/i.test(expr))return false;
+ const splitLogic=(s,op)=>s.split(new RegExp("\\s+"+op+"\\s+","i"));
+ const testAtom=atom=>{
+   const m=atom.trim().match(/^([A-Za-z_][\\w]*|affection|hour|mood)\\s*(==|!=|>=|<=|>|<)\\s*(true|false|-?\\d+(?:\\.\\d+)?|"[^"]*"|'[^']*'|[A-Za-z_][\\w-]*)$/i);
+   if(!m)return false;
+   const key=m[1],op=m[2];let right=m[3].replace(/^["']|["']$/g,"");
+   let left;
+   if(key.toLowerCase()==="affection")left=runtime.affection;
+   else if(key.toLowerCase()==="hour")left=new Date().getHours();
+   else if(key.toLowerCase()==="mood")left=runtime.mood;
+   else left=runtime.flags[key];
+   if(/^true$/i.test(right))right=true;else if(/^false$/i.test(right))right=false;else if(/^-?\\d/.test(right))right=Number(right);
+   if(left===undefined)left=false;
+   if(typeof left==="number"&&typeof right==="number"){}
+   else if(typeof left==="boolean"&&typeof right==="string"&&/^(true|false)$/i.test(right))right=/^true$/i.test(right);
+   switch(op){case"==":return left===right||String(left)===String(right);case"!=":return !(left===right||String(left)===String(right));case">=":return Number(left)>=Number(right);case"<=":return Number(left)<=Number(right);case">":return Number(left)>Number(right);case"<":return Number(left)<Number(right);default:return false}
+ };
+ return splitLogic(expr,"OR").some(group=>splitLogic(group,"AND").every(testAtom));
+}
+function conditionPass(id,override){
+ const b=active();const c=(b.conditions||[]).find(x=>x.condition_id===id);
+ return evaluateCondition(override||c?.condition_expr||"true");
+}
+function responseById(id){
+ if(!id)return null;
+ return (active().responses||[]).find(r=>String(r.response_id||"")===String(id)&&eligibleResponse(r))||null;
+}
 function google(q){const query=String(q||"").trim();if(!query)return;const url=(active().settings?.searchBaseUrl||"https://www.google.com/search?q=")+encodeURIComponent(query);window.open(url,"_blank","noopener,noreferrer")}
 function doAction(action,input){if(action==="status"){renderStatus();return"好感度や関係段階は上部に表示しているよ。"}if(action==="help")return"僕とは雑談、創作、ゲーム、予定整理などを話せるよ。Excel取込・JSON書出しは下のボタンから。AI連携はなく、検索はサイトを開くだけだよ。";if(action==="search"){google(input.replace(/検索して|検索を開いて|検索|グーグルで|googleで|調べて|調べる|調査して/ig,"").trim()||runtime.lastTopic||"");return"検索サイトを開いたよ。結果の取得や要約はしていないから、ブラウザで確認してね。"}if(action==="tasks"){const n=document.querySelectorAll("#taskList .item").length;return"タスク画面で確認してみて。登録内容は既存のタスク管理に保存されているよ。"}if(action==="schedule")return"予定画面で確認できるよ。予定を一緒に整理するなら、何をいつまでにするか教えて。";return""}
-function applyEvents(triggerType,triggerValue){const b=active();(b.events||[]).filter(ev=>ev.enabled!==false&&(!ev.character_id||ev.character_id==="*"||ev.character_id===b.character.id)&&String(ev.trigger_type||"").toLowerCase()===String(triggerType).toLowerCase()&&(!ev.trigger_value||String(ev.trigger_value)===String(triggerValue))).forEach(ev=>{const once=ev.once_only===true||String(ev.once_only).toLowerCase()==="true";if(once&&runtime.flags["EVENT_"+ev.event_id])return;const set=String(ev.set_flags||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean);set.forEach(x=>{const m=x.match(/^([^=]+)=(.*)$/);if(m)runtime.flags[m[1].trim()]=/^(true|1|yes)$/i.test(m[2].trim())?true:m[2].trim()});String(ev.clear_flags||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean).forEach(k=>delete runtime.flags[k]);runtime.affection=Math.max(0,Math.min(100,runtime.affection+(Number(ev.affection_delta)||0)));if(once)runtime.flags["EVENT_"+ev.event_id]=true})}
-function respond(input){const s=norm(input);const b=active();const dp=(b.priorityPhrases||[]).filter(p=>p.enabled!==false&&p.canonical_text).sort((a,b)=>Number(b.priority||0)-Number(a.priority||0));const dmatch=dp.find(p=>[p.canonical_text,...String(p.accepted_variants||"").split(",")].some(k=>norm(k)&&s.includes(norm(k))));let found=dmatch?(()=>{const base=priority.find(p=>p.intent===dmatch.intent||norm(p.keys.split(",")[0])===norm(dmatch.canonical_text));return {...(base||{}),intent:dmatch.intent||base?.intent||"custom",keys:[dmatch.canonical_text,dmatch.accepted_variants||""].join(","),cat:base?.cat||categoryFor(dmatch.canonical_text),replies:base?.replies||[]}})():priority.find(p=>p.keys.split(",").some(k=>s.includes(norm(k))));if(found){if(found.intent==="morning"||found.intent==="hello")runtime.flags.FLAG_FIRST_GREETING=true;if(found.intent==="mood")runtime.flags.FLAG_HEARD_WORRY=true;if(found.action){const act=doAction(found.action,input);if(found.action==="status")return act;if(found.action==="search")return act}runtime.lastTopic=found.cat;if(found.cat==="mood")runtime.mood="気にかけている";runtime.affection=Math.max(0,Math.min(100,runtime.affection+(found.cat==="thanks"?1:0)));save();renderStatus();return found.replies&&found.replies.length?chooseNoRepeat("priority:"+found.intent,found.replies):pickResponse(found.cat)}
-const kws=(b.keywords||[]).filter(k=>k.enabled!==false&&k.keyword).map(k=>({...k,_norm:norm(k.keyword),_aliases:String(k.synonyms||k.accepted_variants||"").split(",").map(norm).filter(Boolean)})).filter(k=>k._norm&& (s.includes(k._norm)||k._aliases.some(a=>s.includes(a)))).sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||b._norm.length-a._norm.length);
-if(kws.length){const kw=kws[0],cat=kw.category||categoryFor(kw.keyword);runtime.lastTopic=kw.keyword;applyEvents("keyword",kw.keyword_id);if(/疲|不安|悩|心配|寂|眠|悲/.test(kw.keyword))runtime.flags.FLAG_HEARD_WORRY=true;let reply=pickResponse(cat);if(cat==="general"||cat==="creative"||cat==="game"||cat==="tech"||cat==="life")reply+=" 話題は「"+kw.keyword+"」だね。知りたい範囲や条件を絞ると、もっと具体的に整理できるよ。";runtime.shortMemory.push({text:input,topic:kw.keyword,time:Date.now()});runtime.shortMemory=runtime.shortMemory.slice(-20);save();renderStatus();return reply}
-runtime.lastTopic="雑談";runtime.shortMemory.push({text:input,topic:"雑談",time:Date.now()});runtime.shortMemory=runtime.shortMemory.slice(-20);save();return chooseNoRepeat("fallback",["今の言葉だけだと意図を特定できなかったよ。別の言い方でもう少し説明してみて。","その話はまだ辞書にないみたい。単語を一つ足してくれると反応しやすいよ。","聞かせてくれてありがとう。何について話したいか、キーワードを一つだけ足してくれる？","僕が分かったふりをするのも変だから、もう少し具体的に教えて。"])}
+function applyEvents(triggerType,triggerValue){
+ const b=active();
+ (b.events||[]).filter(ev=>ev.enabled!==false&&String(ev.enabled).toLowerCase()!=="false"&&(!ev.character_id||ev.character_id==="*"||ev.character_id===b.character.id)&&String(ev.trigger_type||"").toLowerCase()===String(triggerType).toLowerCase()&&(!ev.trigger_value||String(ev.trigger_value)===String(triggerValue))&&conditionPass(ev.condition_id,ev.condition_expr_override)).forEach(ev=>{
+   const once=ev.once_only===true||String(ev.once_only).toLowerCase()==="true";
+   if(once&&runtime.flags["EVENT_"+ev.event_id])return;
+   String(ev.set_flags||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean).forEach(x=>{
+     const m=x.match(/^([^=]+)=(.*)$/);if(!m)return;
+     const value=m[2].trim();
+     runtime.flags[m[1].trim()]=/^(true|1|yes)$/i.test(value)?true:/^(false|0|no)$/i.test(value)?false:value;
+   });
+   String(ev.clear_flags||"").split(/[;,]/).map(x=>x.trim()).filter(Boolean).forEach(k=>delete runtime.flags[k]);
+   runtime.affection=Math.max(0,Math.min(100,runtime.affection+(Number(ev.affection_delta)||0)));
+   if(once)runtime.flags["EVENT_"+ev.event_id]=true;
+ });
+}
+function respond(input){
+ const s=norm(input),b=active();
+ const intentCategory={greeting_morning:"greeting",greeting_hello:"greeting",greeting_evening:"greeting",greeting_sleep:"goodbye",thanks:"thanks",apology:"apology",greeting_return:"greeting",greeting_leave:"goodbye",call_character:"greeting",request_help:"mood",show_status:"status",web_search:"search"};
+ const intentAction={show_status:"status",web_search:"search"};
+ const dp=(b.priorityPhrases||[]).filter(p=>p.enabled!==false&&String(p.enabled).toLowerCase()!=="false"&&p.canonical_text&&(!p.character_id||p.character_id==="*"||p.character_id===b.character.id)&&Number(p.min_affection||0)<=runtime.affection&&Number(p.max_affection??100)>=runtime.affection).sort((a,b)=>Number(b.priority||0)-Number(a.priority||0));
+ const dmatch=dp.find(p=>[p.canonical_text,...String(p.accepted_variants||"").split(",")].some(k=>norm(k)&&s.includes(norm(k))));
+ let found=null,phraseSource=false;
+ if(dmatch){
+   phraseSource=true;
+   const mapped=intentCategory[dmatch.intent]||"";
+   const base=priority.find(p=>p.intent===dmatch.intent||p.intent===({greeting_morning:"morning",greeting_hello:"hello",greeting_evening:"evening",greeting_sleep:"goodnight",greeting_return:"hello",greeting_leave:"goodbye",show_status:"status",web_search:"search",request_help:"mood"}[dmatch.intent])||norm(p.keys.split(",")[0])===norm(dmatch.canonical_text));
+   const pool=String(dmatch.response_pool_id||"");
+   found={...(base||{}),intent:dmatch.intent||base?.intent||"custom",cat:mapped||(base?.cat)||categoryFor(dmatch.canonical_text),action:/ACTION_SHOW_STATUS/i.test(pool)?"status":/ACTION_WEB_SEARCH/i.test(pool)? "search":intentAction[dmatch.intent]||base?.action||"",replies:base?.replies||[]};
+ }else{
+   found=priority.find(p=>p.keys.split(",").some(k=>s.includes(norm(k))));
+ }
+ if(found){
+   if(["morning","hello","greeting_morning","greeting_hello","greeting_return"].includes(found.intent))runtime.flags.FLAG_FIRST_GREETING=true;
+   if(["mood","request_help"].includes(found.intent))runtime.flags.FLAG_HEARD_WORRY=true;
+   if(found.action){
+     const act=doAction(found.action,input);
+     if(found.action==="status")return act;
+     if(found.action==="search"){runtime.flags.FLAG_SEARCH_USED=true;save();renderStatus();return act}
+   }
+   runtime.lastTopic=found.cat;
+   if(found.cat==="mood")runtime.mood="気にかけている";
+   if(found.cat==="thanks")runtime.affection=Math.max(0,Math.min(100,runtime.affection+1));
+   save();renderStatus();
+   if(phraseSource&&b.bundleId!=="NEXUS_RION_BUILTIN"){
+     const list=(b.responses||[]).filter(r=>eligibleResponse(r)&&(r.category===found.cat||r.category==="general")).map(r=>r.response_text).filter(Boolean);
+     if(list.length)return chooseNoRepeat("priority:"+found.intent,list);
+   }
+   return found.replies&&found.replies.length?chooseNoRepeat("priority:"+found.intent,found.replies):pickResponse(found.cat);
+ }
+ const kws=(b.keywords||[]).filter(k=>k.enabled!==false&&String(k.enabled).toLowerCase()!=="false"&&k.keyword&&(!k.character_id||k.character_id==="*"||k.character_id===b.character.id)).map(k=>({...k,_norm:norm(k.keyword),_aliases:String(k.synonyms||k.accepted_variants||"").split(",").map(norm).filter(Boolean)})).filter(k=>k._norm&&(s.includes(k._norm)||k._aliases.some(a=>s.includes(a)))&&conditionPass(k.condition_id)).sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||b._norm.length-a._norm.length);
+ if(kws.length){
+   const kw=kws[0],cat=kw.category||categoryFor(kw.keyword);
+   runtime.lastTopic=kw.keyword;
+   applyEvents("keyword",kw.keyword_id);
+   if(/疲|不安|悩|心配|寂|眠|悲/.test(kw.keyword))runtime.flags.FLAG_HEARD_WORRY=true;
+   const linked=responseById(kw.response_id);
+   const candidates=(b.responses||[]).filter(r=>eligibleResponse(r)&&(r.category===cat||r.category==="general")).map(r=>r.response_text).filter(Boolean);
+   if(linked&&!candidates.includes(linked.response_text))candidates.unshift(linked.response_text);
+   let reply=candidates.length?chooseNoRepeat("keyword:"+kw.keyword_id,candidates):pickResponse(cat);
+   if(cat==="general"||cat==="creative"||cat==="game"||cat==="tech"||cat==="life")reply+=" 話題は「"+kw.keyword+"」だね。知りたい範囲や条件を絞ると、もっと具体的に整理できるよ。";
+   runtime.shortMemory.push({text:input,topic:kw.keyword,time:Date.now()});
+   runtime.shortMemory=runtime.shortMemory.slice(-20);
+   save();renderStatus();return reply;
+ }
+ runtime.lastTopic="雑談";
+ runtime.shortMemory.push({text:input,topic:"雑談",time:Date.now()});
+ runtime.shortMemory=runtime.shortMemory.slice(-20);save();
+ return chooseNoRepeat("fallback",["今の言葉だけだと意図を特定できなかったよ。別の言い方でもう少し説明してみて。","その話はまだ辞書にないみたい。単語を一つ足してくれると反応しやすいよ。","聞かせてくれてありがとう。何について話したいか、キーワードを一つだけ足してくれる？","僕が分かったふりをするのも変だから、もう少し具体的に教えて。"]);
+}
 $("nexus-mascot-toggle").onclick=()=>{$("nexus-mascot-panel").classList.toggle("open");if($("nexus-mascot-panel").classList.contains("open"))$("nx-input").focus()};
 $("nx-close").onclick=()=>$("nexus-mascot-panel").classList.remove("open");
 $("nx-form").onsubmit=e=>{e.preventDefault();const input=$("nx-input").value.trim();if(!input)return;add(input,true);const reply=respond(input);add(reply);$("nx-speech").textContent=reply;$("nx-input").value=""};
