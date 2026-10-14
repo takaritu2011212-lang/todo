@@ -27,7 +27,7 @@
 .nx-controls{padding:10px;border-top:1px solid #1b506b;display:grid;grid-template-columns:1fr auto;gap:7px}
 .nx-controls input{min-width:0;padding:9px}.nx-controls button{padding:8px 10px}
 .nx-tools{display:flex;gap:6px;padding:0 10px 10px;flex-wrap:wrap}.nx-tools button{font-size:11px;padding:6px 8px}
-#nx-reminder{font-size:11px;color:#85a8bd;padding:0 12px 10px}
+#nx-reminder{font-size:11px;color:#85a8bd;padding:0 12px 10px}#nx-status{font-size:11px;color:#8feaff;padding:7px 12px;background:#071522;border-bottom:1px solid #173c53}#nx-import,#nx-export,#nx-memory{font-size:11px;padding:6px 8px}
 @media(max-width:520px){#nexus-mascot{right:10px;bottom:10px}#nexus-mascot-toggle{width:56px;height:56px}#nexus-mascot-panel{width:calc(100vw - 82px);height:70vh}}
 </style></head>
 <body><div class="shell">
@@ -46,10 +46,13 @@
   <section id="nexus-mascot-panel" aria-label="マスコット会話">
     <header class="nx-masthead"><div><strong id="nx-name">NEXUS / リオン</strong><small>DESKTOP COMPANION · LOCAL MODE</small></div><button id="nx-close" aria-label="閉じる">×</button></header>
     <div id="nx-speech">呼んだ？ タスク以外の話もどうぞ。</div>
+    <div id="nx-status" aria-live="polite">好感度 0 / 100　知り合い　｜　気分：ふつう</div>
     <div id="nx-log" aria-live="polite"></div>
     <div id="nx-search-results"></div>
     <form class="nx-controls" id="nx-form"><input id="nx-input" maxlength="500" placeholder="何でも話してみて…" autocomplete="off" required><button class="btn primary">送信</button></form>
     <div class="nx-tools"><button class="btn" id="nx-google">Googleで検索</button><button class="btn" id="nx-notify">5分ごとの声かけ</button><button class="btn" id="nx-clear">会話を消去</button></div>
+    <div class="nx-tools"><select id="nx-select" aria-label="キャラクター切替"></select><button class="btn" id="nx-import">Excel / JSON取込</button><button class="btn" id="nx-export">JSON書出し</button><button class="btn" id="nx-memory">記憶を見る</button></div>
+    <input id="nx-data-file" type="file" accept=".xlsx,.xls,.json,application/json" hidden>
     <div id="nx-reminder">会話エンジンは端末内で動作。検索はGoogleの検索結果ページを開きます。</div>
   </section>
   <button id="nexus-mascot-toggle" aria-label="マスコットを開く" title="NEXUSと話す"></button>
