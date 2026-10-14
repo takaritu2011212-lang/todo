@@ -74,5 +74,47 @@ $("nx-data-file").onchange=async e=>{const f=e.target.files[0];if(!f)return;try{
 $("nx-export").onclick=()=>{const blob=new Blob([JSON.stringify(active(),null,2)],{type:"application/json;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(active().character.name||"nexus")+"_dictionary.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 $("nx-memory").onclick=()=>{const items=runtime.longMemory.map((m,i)=>({...m,source:"long",sourceIndex:i})).concat(runtime.shortMemory.map((m,i)=>({...m,source:"short",sourceIndex:i}))).slice(-30);const body=items.map((m,i)=>(i+1)+". ["+(m.source==="long"?"長期":"短期")+"] "+new Date(m.time||Date.now()).toLocaleString()+" ["+(m.topic||"記録")+"] "+m.text).join("\n")||"記憶はまだありません。";alert("記憶一覧（最大30件）\n\n"+body);const cmd=prompt("操作を入力：S番号＝長期記憶に保存 / D番号＝その記憶を削除 / ALL＝記憶を全削除 / 空欄＝終了");if(!cmd)return;if(/^all$/i.test(cmd.trim())){runtime.shortMemory=[];runtime.longMemory=[];save();toast("記憶をすべて削除しました");return}const m=cmd.trim().match(/^([SD])(\d+)$/i);if(!m){toast("操作をキャンセルしました");return}const n=Number(m[2]),item=items[n-1];if(!item){toast("その番号の記憶はありません");return}if(m[1].toUpperCase()==="S"){if(item.source==="short")runtime.longMemory.push({text:item.text,topic:item.topic,time:item.time});else toast("その記憶はすでに長期記憶です");runtime.longMemory=runtime.longMemory.slice(-100);save();toast("長期記憶に保存しました")}else{if(item.source==="long")runtime.longMemory.splice(item.sourceIndex,1);else runtime.shortMemory.splice(item.sourceIndex,1);save();toast("記憶を削除しました")}}
 renderStatus();renderHistory();
+
+// Shared API for both the floating mascot and the main chat page.
+function useCharacterProfile(profile){
+  const name=String(profile?.name||"リオン");
+  const requestedId=String(profile?.id||"");
+  let target=bundles.find(b=>b.character.id===requestedId||b.character.name===name);
+  if(!target){
+    const safeId=(name==="リオン"?"CHAR_RION":"CHAR_"+(requestedId||name).normalize("NFKC").replace(/[^\w-]/g,"_").toUpperCase());
+    target=JSON.parse(JSON.stringify(defaultBundle));
+    target.bundleId="BUNDLE_"+safeId;
+    target.character={...target.character,id:safeId,name,personality:String(profile?.style||profile?.personality||""),firstPerson:"僕",userCall:"きみ",tone:String(profile?.tone||"casual"),endingStyle:"soft",greeting:String(profile?.greeting||"こんにちは。今日は何を話そう？")};
+    ["keywords","responses","priorityPhrases","events","flags","conditions"].forEach(key=>{
+      (target[key]||[]).forEach(row=>{
+        if(row.character_id==="CHAR_RION")row.character_id=safeId;
+        if(row.character_id==="rion")row.character_id=safeId;
+      });
+    });
+    bundles.push(target);
+  }
+  if(activeId!==target.character.id){
+    activeId=target.character.id;
+    runtime.affection=Number(target.character.defaultAffection)||0;
+    runtime.mood="ふつう";
+    runtime.flags={};
+    runtime.lastResponses={};
+    runtime.lastTopic="";
+    runtime.shortMemory=[];
+    runtime.longMemory=[];
+    save();
+    renderHistory();
+    renderStatus();
+  }
+  return target.character;
+}
+window.NEXUSCompanion={
+  respond,
+  useCharacter:useCharacterProfile,
+  getCharacter:()=>active().character,
+  getStatus:()=>({character:active().character,affection:runtime.affection,relation:relation(runtime.affection),mood:runtime.mood,flags:{...runtime.flags},shortMemory:runtime.shortMemory.slice(),longMemory:runtime.longMemory.slice()}),
+  getBundle:()=>JSON.parse(JSON.stringify(active()))
+};
+
 let lastNudge=Date.now();setInterval(()=>{if(!runtime.reminders||document.visibilityState!=="visible"||Date.now()-lastNudge<295000)return;lastNudge=Date.now();const lines=["少し休憩する？ 目と肩を休めるのも仕事のうちだよ。","何か考え中なら、要点を一つだけメモしておくといいよ。","5分ごとの生存確認。必要なら話してね。","水分補給や軽い伸びを忘れずに。人間はメンテナンスが必要だからね。","頭が散らかってきたら、今やることを一つに絞ろう。"];const msg=lines[Math.floor(Math.random()*lines.length)];$("nx-speech").textContent=msg;if("Notification"in window&&Notification.permission==="granted"&&document.visibilityState==="visible")new Notification("NEXUS / "+active().character.name,{body:msg})},30000);
 })();
