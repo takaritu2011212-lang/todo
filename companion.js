@@ -73,7 +73,7 @@ function evaluateCondition(expression){
  if(/^false$/i.test(expr))return false;
  const splitLogic=(s,op)=>s.split(new RegExp("\\s+"+op+"\\s+","i"));
  const testAtom=atom=>{
-   const m=atom.trim().match(/^([A-Za-z_][\\w]*|affection|hour|mood)\\s*(==|!=|>=|<=|>|<)\\s*(true|false|-?\\d+(?:\\.\\d+)?|"[^"]*"|'[^']*'|[A-Za-z_][\\w-]*)$/i);
+   const m=atom.trim().match(/^([A-Za-z_][\w]*|affection|hour|mood)\s*(==|!=|>=|<=|>|<)\s*(true|false|-?\d+(?:\.\d+)?|"[^"]*"|'[^']*'|[A-Za-z_][\w-]*)$/i);
    if(!m)return false;
    const key=m[1],op=m[2];let right=m[3].replace(/^["']|["']$/g,"");
    let left;
@@ -81,7 +81,7 @@ function evaluateCondition(expression){
    else if(key.toLowerCase()==="hour")left=new Date().getHours();
    else if(key.toLowerCase()==="mood")left=runtime.mood;
    else left=runtime.flags[key];
-   if(/^true$/i.test(right))right=true;else if(/^false$/i.test(right))right=false;else if(/^-?\\d/.test(right))right=Number(right);
+   if(/^true$/i.test(right))right=true;else if(/^false$/i.test(right))right=false;else if(/^-?\d/.test(right))right=Number(right);
    if(left===undefined)left=false;
    if(typeof left==="number"&&typeof right==="number"){}
    else if(typeof left==="boolean"&&typeof right==="string"&&/^(true|false)$/i.test(right))right=/^true$/i.test(right);
@@ -131,6 +131,10 @@ function respond(input){
    found=priority.find(p=>p.keys.split(",").some(k=>s.includes(norm(k))));
  }
  if(found){
+   if(phraseSource){
+     const matchedKeyword=(b.keywords||[]).find(k=>norm(k.keyword)===norm(dmatch.canonical_text));
+     if(matchedKeyword)applyEvents("keyword",matchedKeyword.keyword_id);
+   }
    if(["morning","hello","greeting_morning","greeting_hello","greeting_return"].includes(found.intent))runtime.flags.FLAG_FIRST_GREETING=true;
    if(["mood","request_help"].includes(found.intent))runtime.flags.FLAG_HEARD_WORRY=true;
    if(found.action){
