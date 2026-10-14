@@ -42,6 +42,31 @@ if(!Array.isArray(bundles)||!bundles.length)bundles=[defaultBundle];
 let activeId=saved.activeId||bundles[0].character.id;
 let runtime={messages:Array.isArray(saved.messages)?saved.messages:[],affection:Number(saved.affection)||0,mood:saved.mood||"ふつう",flags:saved.flags||{},lastResponses:saved.lastResponses||{},lastTopic:saved.lastTopic||"",shortMemory:Array.isArray(saved.shortMemory)?saved.shortMemory:[],longMemory:Array.isArray(saved.longMemory)?saved.longMemory:[],reminders:!!saved.reminders};
 const active=()=>bundles.find(b=>b.character.id===activeId)||bundles[0];
+function defaultFlags(bundle){
+ const out={};
+ (bundle?.flags||[]).forEach(f=>{const v=f.default_value;out[f.flag_id]=v===true||v===1||/^(true|1|yes)$/i.test(String(v));});
+ return out;
+}
+function captureCharacterState(){
+ runtime.characterStates=runtime.characterStates||{};
+ runtime.characterStates[activeId]={affection:runtime.affection,mood:runtime.mood,flags:{...runtime.flags},lastResponses:{...runtime.lastResponses},lastTopic:runtime.lastTopic,shortMemory:[...runtime.shortMemory],longMemory:[...runtime.longMemory],messages:[...runtime.messages]};
+}
+function switchBundle(id){
+ const target=bundles.find(b=>b.character.id===id);if(!target)return;
+ if(activeId!==id){
+  captureCharacterState();activeId=id;const stored=runtime.characterStates[id];
+  runtime.affection=stored?Number(stored.affection)||0:Number(target.character.defaultAffection)||0;
+  runtime.mood=stored?.mood||"ふつう";
+  runtime.flags=stored?{...defaultFlags(target),...(stored.flags||{})}:defaultFlags(target);
+  runtime.lastResponses=stored?.lastResponses?{...stored.lastResponses}:{};
+  runtime.lastTopic=stored?.lastTopic||"";
+  runtime.shortMemory=stored?.shortMemory?[...stored.shortMemory]:[];
+  runtime.longMemory=stored?.longMemory?[...stored.longMemory]:[];
+  runtime.messages=stored?.messages?[...stored.messages]:[];
+  save();renderHistory();renderStatus();
+ }
+}
+
 function save(){try{localStorage.setItem(DATA,JSON.stringify(bundles));localStorage.setItem(STORE,JSON.stringify({...runtime,activeId,messages:runtime.messages.slice(-100)}))}catch{toast("保存容量が不足しています。画像や履歴を減らしてください。")}}
 function toast(msg){const el=$("toast");if(el){el.textContent=msg;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),2400)}}
 function relation(n){return n<20?"知り合い":n<45?"顔なじみ":n<70?"仲のいい相棒":n<90?"大切な相棒":"最高の信頼"}
@@ -178,7 +203,7 @@ $("nx-form").onsubmit=e=>{e.preventDefault();const input=$("nx-input").value.tri
 $("nx-google").onclick=()=>google($("nx-input").value.trim()||runtime.lastTopic||"");
 $("nx-notify").onclick=async()=>{runtime.reminders=!runtime.reminders;if(runtime.reminders&&"Notification"in window&&Notification.permission==="default"){const p=await Notification.requestPermission();if(p!=="granted")runtime.reminders=false}save();renderStatus();toast(runtime.reminders?"5分ごとの声かけを有効にしました":"声かけをオフにしました")};
 $("nx-clear").onclick=()=>{if(confirm("会話履歴を消去しますか？")){runtime.messages=[];renderHistory();save()}};
-$("nx-select").onchange=()=>{activeId=$("nx-select").value;runtime.messages=[];runtime.affection=Number(active().character.defaultAffection)||0;runtime.flags={};renderHistory();renderStatus();save()};
+$("nx-select").onchange=()=>switchBundle($("nx-select").value);
 function readRows(wb,sheet){const ws=wb.Sheets[sheet];return ws?window.XLSX.utils.sheet_to_json(ws,{defval:""}):[]}
 function enabledRow(v){return v===""||v===undefined||v===null||v===true||v===1||String(v).toLowerCase()==="true"}
 function parseWorkbook(wb){const chars=readRows(wb,"03_キャラクター");const enabled=chars.find(c=>enabledRow(c.enabled))||chars[0];if(!enabled||!enabled.character_id||!enabled.display_name)throw Error("03_キャラクターに character_id / display_name が必要です");const cid=String(enabled.character_id);const pick=(sheet)=>readRows(wb,sheet).filter(r=>enabledRow(r.enabled)).filter(r=>!r.character_id||r.character_id===cid||r.character_id==="*"||r.character_id==="CHAR_RION").map(r=>({...r,character_id:(!r.character_id||r.character_id==="*"||r.character_id==="CHAR_RION")?cid:r.character_id}));return{schemaVersion:"1.0",bundleId:"IMPORT_"+cid,character:{id:cid,name:String(enabled.display_name),personality:String(enabled.personality||""),firstPerson:String(enabled.first_person||"僕"),userCall:String(enabled.user_call||"きみ"),tone:String(enabled.tone||"casual"),endingStyle:String(enabled.ending_style||"soft"),defaultAffection:Number(enabled.default_affection)||0,greeting:"こんにちは。今日は何を話そう？"},keywords:pick("01_単語辞書"),responses:pick("02_定型文"),priorityPhrases:pick("08_最優先フレーズ"),events:pick("04_イベント一覧"),flags:readRows(wb,"05_フラグ定義").filter(r=>enabledRow(r.enabled)),conditions:readRows(wb,"06_条件セット").filter(r=>enabledRow(r.enabled)),settings:{reminderMinutes:5,searchBaseUrl:"https://www.google.com/search?q=",noAi:true,searchOnlyOpensSite:true}}}
@@ -208,19 +233,7 @@ function useCharacterProfile(profile){
     });
     bundles.push(target);
   }
-  if(activeId!==target.character.id){
-    activeId=target.character.id;
-    runtime.affection=Number(target.character.defaultAffection)||0;
-    runtime.mood="ふつう";
-    runtime.flags={};
-    runtime.lastResponses={};
-    runtime.lastTopic="";
-    runtime.shortMemory=[];
-    runtime.longMemory=[];
-    save();
-    renderHistory();
-    renderStatus();
-  }
+  switchBundle(target.character.id);
   return target.character;
 }
 window.NEXUSCompanion={
