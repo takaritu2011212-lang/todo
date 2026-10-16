@@ -172,7 +172,7 @@ function respondRaw(input){
    if(found.cat==="thanks")runtime.affection=Math.max(0,Math.min(100,runtime.affection+1));
    save();renderStatus();
    if(phraseSource){
-     const matchedKeyword=(b.keywords||[]).find(k=>norm(k.keyword)===norm(dmatch.canonical_text)&&k.response_id);
+     const matchedKeyword=(b.keywords||[]).filter(k=>k.response_id&&k.keyword&&k.enabled!==false&&String(k.enabled).toLowerCase()!=="false"&&(!k.character_id||k.character_id==="*"||k.character_id===b.character.id)).map(k=>({...k,_norm:norm(k.keyword),_aliases:String(k.synonyms||k.accepted_variants||"").split(",").map(norm).filter(Boolean)})).filter(k=>k._norm&&(s.includes(k._norm)||k._aliases.some(a=>s.includes(a)))&&conditionPass(k.condition_id)).sort((a,b)=>Number(b.priority||0)-Number(a.priority||0)||b._norm.length-a._norm.length)[0];
      const linked=matchedKeyword?responseById(matchedKeyword.response_id):null;
      if(linked&&linked.response_text)return linked.response_text;
    }
