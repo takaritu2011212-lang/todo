@@ -171,6 +171,11 @@ function respondRaw(input){
    if(found.cat==="mood")runtime.mood="気にかけている";
    if(found.cat==="thanks")runtime.affection=Math.max(0,Math.min(100,runtime.affection+1));
    save();renderStatus();
+   if(phraseSource){
+     const matchedKeyword=(b.keywords||[]).find(k=>norm(k.keyword)===norm(dmatch.canonical_text)&&k.response_id);
+     const linked=matchedKeyword?responseById(matchedKeyword.response_id):null;
+     if(linked&&linked.response_text)return linked.response_text;
+   }
    if(phraseSource&&b.bundleId!=="NEXUS_RION_BUILTIN"){
      const list=(b.responses||[]).filter(r=>eligibleResponse(r)&&(r.category===found.cat||r.category==="general")).map(r=>r.response_text).filter(Boolean);
      if(list.length)return chooseNoRepeat("priority:"+found.intent,list);
