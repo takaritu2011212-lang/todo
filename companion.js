@@ -230,32 +230,105 @@ function mapKeywordRow(r,i,source){const pick=(...keys)=>{for(const k of keys){i
 function parseDictionaryWorkbook(wb,filename){let sourceRows=sheetRows(wb,["01_単語辞書","単語辞書","キーワード辞書","辞書","keywords","words"]);if(!sourceRows.length){const first=wb.SheetNames.find(s=>s);if(first)sourceRows=readRows(wb,first)}const mapped=sourceRows.map((r,i)=>mapKeywordRow(r,i,filename.replace(/[^\w-]/g,"_"))).filter(Boolean);if(!mapped.length)throw Error("「"+filename+"」から単語列を読み取れません。列名は keyword / キーワード / 単語 のいずれかにしてください。");return mapped}
 const EXPRESSION_TAGS=["talk","joke","smile","bashful","scolding","sleepy","sad","surprised","thinking","excited","embarrassed"];
 function parseTaggedDictionaryText(text,filename){
- const source=safeSourceId(filename),keywords=[],responses=[];
- const lines=String(text||"").replace(/^\uFEFF/,"").split(/\r?\n/);
+ const source=safeSourceId(filename),keywords=[],responses=[],warnings=[];
+ const lines=String(text||"").replace(/^\uFEFF/,"").replace(/\u0000/g,"").split(/\r\n?|\n/);
  let lineNo=0;
  for(const rawLine of lines){
   lineNo++;
-  const line=rawLine.trim();
-  if(!line||line.startsWith("$"))continue;
-  const m=line.match(/^(.+?)\s+\\m\[([a-z]+)\](.*)$/);
-  if(!m)throw Error("「"+filename+"」の"+lineNo+"行目を読めません。キーワード \\m[タグ]返答文 の形式にしてください。");
-  const keyword=m[1].trim(),tag=m[2],reply=m[3].trim();
-  if(!keyword||!reply)throw Error("「"+filename+"」の"+lineNo+"行目はキーワードまたは返答文が空です。");
-  if(!EXPRESSION_TAGS.includes(tag))throw Error("「"+filename+"」の"+lineNo+"行目に未定義のタグ \\m["+tag+"] があります。");
+  const line=rawLine.trim().replace(/\u00a0/g," ");
+  if(!line||line.startsWith("$")||line.startsWith("#")||line.startsWith("//"))continue;
+  const m=line.match(/^(.*?)\\m\[([a-z]+)\](.*)$/i);
+  if(!m){warnings.push(lineNo+"行目：タグ形式が見つからないためスキップ");continue;}
+  const keyword=m[1].trim().replace(/\s+/g," "),tag=m[2].toLowerCase(),reply=m[3].trim();
+  if(!keyword||!reply){warnings.push(lineNo+"行目：キーワードまたは返答文が空のためスキップ");continue;}
+  if(!EXPRESSION_TAGS.includes(tag)){warnings.push(lineNo+"行目：未定義タグ \\\\m["+tag+"] のためスキップ");continue;}
   const responseId="RESP_TAGGED_"+source+"_"+lineNo;
   keywords.push({keyword_id:"KW_TAGGED_"+source+"_"+lineNo,keyword,synonyms:"",category:categoryFor(keyword),priority:100,match_type:"contains",response_id:responseId,enabled:true});
-  responses.push({response_id:responseId,category:categoryFor(keyword),character_id:"*",response_text:"\\m["+tag+"]"+reply,enabled:true,weight:10});
+  responses.push({response_id:responseId,category:categoryFor(keyword),character_id:"*",response_text:"\\\\m["+tag+"]"+reply,enabled:true,weight:10});
  }
- if(!keywords.length)throw Error("「"+filename+"」に読み込める辞書項目がありません。");
- return {keywords,responses};
-}function mergeKeywordRows(target,rows){const map=new Map((target.keywords||[]).map(k=>[String(k.keyword||"").normalize("NFKC").toLowerCase(),k]));const ids=new Set(Array.from(map.values()).map(k=>String(k.keyword_id||"")).filter(Boolean));let added=0,updated=0;for(const row of rows){const key=String(row.keyword||"").normalize("NFKC").toLowerCase();if(!key)continue;const prior=map.get(key);if(prior){map.set(key,{...prior,...row,keyword_id:prior.keyword_id||row.keyword_id});updated++}else{let next={...row},base=String(next.keyword_id||"KW_IMPORTED"),candidate=base,n=2;while(ids.has(candidate))candidate=base+"_"+(n++);next.keyword_id=candidate;ids.add(candidate);map.set(key,next);added++}}target.keywords=Array.from(map.values());return{added,updated,total:target.keywords.length}}
+ if(!keywords.length)throw Error("「"+filename+"」に読み込める辞書項目がありません。各行を「キーワード \\\\m[タグ]返答文」の形式にしてください。"+(warnings.length?"\\n"+warnings.slice(0,8).join("\\n"):""));
+ return {keywords,responses,warnings,totalLines:lines.length};
+}
+function mergeKeywordRows(target,rows){const map=new Map((target.keywords||[]).map(k=>[String(k.keyword||"").normalize("NFKC").toLowerCase(),k]));const ids=new Set(Array.from(map.values()).map(k=>String(k.keyword_id||"")).filter(Boolean));let added=0,updated=0;for(const row of rows){const key=String(row.keyword||"").normalize("NFKC").toLowerCase();if(!key)continue;const prior=map.get(key);if(prior){map.set(key,{...prior,...row,keyword_id:prior.keyword_id||row.keyword_id});updated++}else{let next={...row},base=String(next.keyword_id||"KW_IMPORTED"),candidate=base,n=2;while(ids.has(candidate))candidate=base+"_"+(n++);next.keyword_id=candidate;ids.add(candidate);map.set(key,next);added++}}target.keywords=Array.from(map.values());return{added,updated,total:target.keywords.length}}
 function notifyImported(bundle){window.dispatchEvent(new CustomEvent("nexus:character-imported",{detail:{id:bundle.character.id,name:bundle.character.name,style:bundle.character.personality||"",tone:bundle.character.tone||"",greeting:bundle.character.greeting||"こんにちは。今日は何を話そう？"}}))}
-$("nx-import").onclick=()=> $("nx-data-file").click();
-$("nx-data-file").onchange=async e=>{const files=Array.from(e.target.files||[]);if(!files.length)return;try{const imports=[];let mergedRows=[],mergedResponses=[];for(const f of files){if(/\.(json|txt)$/i.test(f.name)){const raw=await f.text();if(/\.txt$/i.test(f.name)||raw.trim().startsWith("$")||/\\m\[(talk|joke|smile|bashful|scolding|sleepy|sad|surprised|thinking|excited|embarrassed)\]/.test(raw)){const parsed=parseTaggedDictionaryText(raw,f.name);mergedRows.push(...parsed.keywords);mergedResponses.push(...parsed.responses)}else{const data=JSON.parse(raw);if(data&&data.character&&Array.isArray(data.keywords)&&Array.isArray(data.responses))imports.push({type:"bundle",bundle:validateBundle(data),name:f.name});else if(Array.isArray(data))mergedRows.push(...data.map((r,i)=>mapKeywordRow(r,i,f.name.replace(/[^\w-]/g,"_"))).filter(Boolean));else if(data&&Array.isArray(data.keywords))mergedRows.push(...data.keywords.map((r,i)=>mapKeywordRow(r,i,f.name.replace(/[^\w-]/g,"_"))).filter(Boolean));else throw Error("JSON「"+f.name+"」はタグ付き辞書、辞書配列、keywords配列、または完全なNEXUS JSONではありません。")}}else{await loadXlsx();const wb=window.XLSX.read(await f.arrayBuffer(),{type:"array"});if(hasCharacterSheet(wb))imports.push({type:"bundle",bundle:validateBundle(parseWorkbook(wb)),name:f.name});else mergedRows.push(...parseDictionaryWorkbook(wb,f.name))}}let messages=[];for(const item of imports){const bundle=item.bundle,idx=bundles.findIndex(x=>x.character.id===bundle.character.id);if(idx>=0){if(!confirm("「"+item.name+"」は既存キャラクター「"+bundle.character.name+"」とIDが重複します。更新しますか？"))continue;bundles[idx]=bundle}else bundles.push(bundle);switchBundle(bundle.character.id);runtime.flags={...defaultFlags(bundle),...runtime.flags};notifyImported(bundle);messages.push("キャラクター「"+bundle.character.name+"」")}if(mergedRows.length){const stats=mergeKeywordRows(active(),mergedRows);let responseAdded=0;for(const r of mergedResponses){const idx=(active().responses||[]).findIndex(old=>String(old.response_id||"")===String(r.response_id||""));if(idx>=0)active().responses[idx]={...active().responses[idx],...r,character_id:active().character.id};else{(active().responses||(active().responses=[])).push({...r,character_id:active().character.id});responseAdded++}}save();renderHistory();renderStatus();messages.push("単語 "+stats.added+"件追加 / "+stats.updated+"件更新"+(mergedResponses.length?"、タグ付き返答 "+mergedResponses.length+"件":"")+"（辞書合計 "+stats.total+"件）")}else if(imports.length){save();renderHistory();renderStatus()}if(!messages.length)toast("読み込み対象に変更はありませんでした");else toast(files.length+"ファイルを読み込みました");if(messages.length)alert("読み込み完了（"+files.length+"ファイル）\n\n"+messages.join("\n")+"\n\n辞書データは現在のキャラクターに統合され、JSON書出しで保存できます。")}catch(err){alert("読み込みできませんでした。\n"+(err.message||err))}finally{$("nx-data-file").value=""}};
-$("nx-export").onclick=()=>{const blob=new Blob([JSON.stringify(active(),null,2)],{type:"application/json;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=(active().character.name||"nexus")+"_dictionary.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+function syncChatCharacter(){
+ const el=$("chatCharacter");
+ if(el&&window.NEXUSCompanion&&typeof window.NEXUSCompanion.useCharacter==="function"){
+  const name=el.options[el.selectedIndex]?.text||"リオン";
+  window.NEXUSCompanion.useCharacter({id:el.value,name});
+ }
+}
+function dictionaryText(bundle){
+ const responses=new Map((bundle.responses||[]).map(r=>[String(r.response_id||""),r]));
+ const rows=[];
+ for(const k of (bundle.keywords||[])){
+  if(k.enabled===false||String(k.enabled).toLowerCase()==="false")continue;
+  const r=responses.get(String(k.response_id||""));
+  let value=String(r?.response_text||"").trim();
+  if(!value)value="\\\\m[talk]（返答文未設定）";
+  else if(!/^\\\\m\[[a-z]+\]/i.test(value))value="\\\\m[talk]"+value;
+  rows.push(String(k.keyword||"").trim()+" "+value);
+ }
+ return "$"+String(bundle.character?.name||"NEXUS")+"辞書#\\n"+rows.join("\\n")+"\\n";
+}
+function renderDictionary(){
+ const list=$("nx-dictionary-list"),summary=$("nx-dictionary-summary"),filter=$("nx-dictionary-filter");
+ if(!list||!summary)return;
+ const bundle=active(),responses=new Map((bundle.responses||[]).map(r=>[String(r.response_id||""),r]));
+ const q=String(filter?.value||"").normalize("NFKC").toLowerCase().trim();
+ const rows=(bundle.keywords||[]).filter(k=>!q||String(k.keyword||"").normalize("NFKC").toLowerCase().includes(q)||String(responses.get(String(k.response_id||""))?.response_text||"").normalize("NFKC").toLowerCase().includes(q));
+ summary.textContent="キャラクター："+(bundle.character?.name||"不明")+" / 登録："+(bundle.keywords||[]).length+"件 / 表示："+rows.length+"件";
+ list.replaceChildren();
+ const frag=document.createDocumentFragment();
+ for(const k of rows){
+  const item=document.createElement("div");item.className="nx-dict-row";
+  const keyword=document.createElement("strong");keyword.textContent=String(k.keyword||"（キーワードなし）");
+  const response=document.createElement("div");response.className="nx-dict-response";
+  const r=responses.get(String(k.response_id||""));
+  response.textContent=String(r?.response_text||"（返答文未設定）");
+  item.append(keyword,response);frag.append(item);
+ }
+ list.append(frag);
+}
+$("nx-import").onclick=()=>{syncChatCharacter();$("nx-data-file").click()};
+$("nx-data-file").onchange=async e=>{
+ const files=Array.from(e.target.files||[]);if(!files.length)return;
+ try{
+  syncChatCharacter();
+  const mergedRows=[],mergedResponses=[],warnings=[],loaded=[];
+  for(const f of files){
+   if(!/\.txt$/i.test(f.name))throw Error("読み込めるのは .txt 辞書ファイルのみです。");
+   const parsed=parseTaggedDictionaryText(await f.text(),f.name);
+   mergedRows.push(...parsed.keywords);mergedResponses.push(...parsed.responses);
+   warnings.push(...parsed.warnings.map(w=>f.name+"："+w));loaded.push(f.name);
+  }
+  const stats=mergeKeywordRows(active(),mergedRows);
+  let responseAdded=0;
+  for(const r of mergedResponses){
+   const idx=(active().responses||[]).findIndex(old=>String(old.response_id||"")===String(r.response_id||""));
+   if(idx>=0)active().responses[idx]={...active().responses[idx],...r,character_id:active().character.id};
+   else{(active().responses||(active().responses=[])).push({...r,character_id:active().character.id});responseAdded++}
+  }
+  save();renderHistory();renderStatus();renderDictionary();
+  let msg="TXT読込完了\\n"+loaded.length+"ファイル\\n追加："+stats.added+"件 / 更新："+stats.updated+"件\\n辞書合計："+stats.total+"件";
+  if(warnings.length)msg+="\\n\\n読み飛ばした行："+warnings.length+"行\\n"+warnings.slice(0,20).join("\\n")+(warnings.length>20?"\\nほか "+(warnings.length-20)+"行":"");
+  alert(msg);
+ }catch(err){alert("読み込みできませんでした。\\n"+(err.message||err))}
+ finally{$("nx-data-file").value=""}
+};
+$("nx-export").onclick=()=>{
+ syncChatCharacter();
+ const text=dictionaryText(active()),blob=new Blob([text],{type:"text/plain;charset=utf-8"});
+ const url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download=(active().character.name||"nexus")+"_dictionary.txt";a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+$("nx-dictionary-refresh").onclick=()=>{syncChatCharacter();renderDictionary()};
+$("nx-dictionary-filter").oninput=renderDictionary;
 $("nx-memory").onclick=()=>{const items=runtime.longMemory.map((m,i)=>({...m,source:"long",sourceIndex:i})).concat(runtime.shortMemory.map((m,i)=>({...m,source:"short",sourceIndex:i}))).slice(-30);const body=items.map((m,i)=>(i+1)+". ["+(m.source==="long"?"長期":"短期")+"] "+new Date(m.time||Date.now()).toLocaleString()+" ["+(m.topic||"記録")+"] "+m.text).join("\n")||"記憶はまだありません。";alert("記憶一覧（最大30件）\n\n"+body);const cmd=prompt("操作を入力：S番号＝長期記憶に保存 / D番号＝その記憶を削除 / ALL＝記憶を全削除 / 空欄＝終了");if(!cmd)return;if(/^all$/i.test(cmd.trim())){runtime.shortMemory=[];runtime.longMemory=[];save();toast("記憶をすべて削除しました");return}const m=cmd.trim().match(/^([SD])(\d+)$/i);if(!m){toast("操作をキャンセルしました");return}const n=Number(m[2]),item=items[n-1];if(!item){toast("その番号の記憶はありません");return}if(m[1].toUpperCase()==="S"){if(item.source==="short")runtime.longMemory.push({text:item.text,topic:item.topic,time:item.time});else toast("その記憶はすでに長期記憶です");runtime.longMemory=runtime.longMemory.slice(-100);save();toast("長期記憶に保存しました")}else{if(item.source==="long")runtime.longMemory.splice(item.sourceIndex,1);else runtime.shortMemory.splice(item.sourceIndex,1);save();toast("記憶を削除しました")}}
 runtime.flags={...defaultFlags(active()),...runtime.flags};
 renderStatus();renderHistory();
+if($("nx-dictionary-list"))renderDictionary();
 
 // Shared API for both the floating mascot and the main chat page.
 function useCharacterProfile(profile){
