@@ -241,12 +241,12 @@ function parseTaggedDictionaryText(text,filename){
   if(!m){warnings.push(lineNo+"行目：タグ形式が見つからないためスキップ");continue;}
   const keyword=m[1].trim().replace(/\s+/g," "),tag=m[2].toLowerCase(),reply=m[3].trim();
   if(!keyword||!reply){warnings.push(lineNo+"行目：キーワードまたは返答文が空のためスキップ");continue;}
-  if(!EXPRESSION_TAGS.includes(tag)){warnings.push(lineNo+"行目：未定義タグ \\\\m["+tag+"] のためスキップ");continue;}
+  if(!EXPRESSION_TAGS.includes(tag)){warnings.push(lineNo+"行目：未定義タグ \\m["+tag+"] のためスキップ");continue;}
   const responseId="RESP_TAGGED_"+source+"_"+lineNo;
   keywords.push({keyword_id:"KW_TAGGED_"+source+"_"+lineNo,keyword,synonyms:"",category:categoryFor(keyword),priority:100,match_type:"contains",response_id:responseId,enabled:true});
-  responses.push({response_id:responseId,category:categoryFor(keyword),character_id:"*",response_text:"\\\\m["+tag+"]"+reply,enabled:true,weight:10});
+  responses.push({response_id:responseId,category:categoryFor(keyword),character_id:"*",response_text:"\\m["+tag+"]"+reply,enabled:true,weight:10});
  }
- if(!keywords.length)throw Error("「"+filename+"」に読み込める辞書項目がありません。各行を「キーワード \\\\m[タグ]返答文」の形式にしてください。"+(warnings.length?"\\n"+warnings.slice(0,8).join("\\n"):""));
+ if(!keywords.length)throw Error("「"+filename+"」に読み込める辞書項目がありません。各行を「キーワード \\m[タグ]返答文」の形式にしてください。"+(warnings.length?"\\n"+warnings.slice(0,8).join("\\n"):""));
  return {keywords,responses,warnings,totalLines:lines.length};
 }
 function mergeKeywordRows(target,rows){const map=new Map((target.keywords||[]).map(k=>[String(k.keyword||"").normalize("NFKC").toLowerCase(),k]));const ids=new Set(Array.from(map.values()).map(k=>String(k.keyword_id||"")).filter(Boolean));let added=0,updated=0;for(const row of rows){const key=String(row.keyword||"").normalize("NFKC").toLowerCase();if(!key)continue;const prior=map.get(key);if(prior){map.set(key,{...prior,...row,keyword_id:prior.keyword_id||row.keyword_id});updated++}else{let next={...row},base=String(next.keyword_id||"KW_IMPORTED"),candidate=base,n=2;while(ids.has(candidate))candidate=base+"_"+(n++);next.keyword_id=candidate;ids.add(candidate);map.set(key,next);added++}}target.keywords=Array.from(map.values());return{added,updated,total:target.keywords.length}}
@@ -265,8 +265,8 @@ function dictionaryText(bundle){
   if(k.enabled===false||String(k.enabled).toLowerCase()==="false")continue;
   const r=responses.get(String(k.response_id||""));
   let value=String(r?.response_text||"").trim();
-  if(!value)value="\\\\m[talk]（返答文未設定）";
-  else if(!/^\\\\m\[[a-z]+\]/i.test(value))value="\\\\m[talk]"+value;
+  if(!value)value="\\m[talk]（返答文未設定）";
+  else if(!/^\\\\m\[[a-z]+\]/i.test(value))value="\\m[talk]"+value;
   rows.push(String(k.keyword||"").trim()+" "+value);
  }
  return "$"+String(bundle.character?.name||"NEXUS")+"辞書#\\n"+rows.join("\\n")+"\\n";
