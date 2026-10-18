@@ -190,9 +190,15 @@ function respondRaw(input){
    if(/疲|不安|悩|心配|寂|眠|悲/.test(kw.keyword))runtime.flags.FLAG_HEARD_WORRY=true;
    const linked=responseById(kw.response_id);
    const candidates=(b.responses||[]).filter(r=>eligibleResponse(r)&&(r.category===cat||r.category==="general")).map(r=>r.response_text).filter(Boolean);
-   if(linked&&!candidates.includes(linked.response_text))candidates.unshift(linked.response_text);
-   let reply=candidates.length?chooseNoRepeat("keyword:"+kw.keyword_id,candidates):pickResponse(cat);
-   if(cat==="general"||cat==="creative"||cat==="game"||cat==="tech"||cat==="life")reply+=" 話題は「"+kw.keyword+"」だね。知りたい範囲や条件を絞ると、もっと具体的に整理できるよ。";
+   // If the matched keyword has its own linked response, use it directly.
+   // Do not let unrelated generic responses randomly replace a dictionary entry.
+   let reply;
+   if(linked&&linked.response_text){
+     reply=linked.response_text;
+   }else{
+     reply=candidates.length?chooseNoRepeat("keyword:"+kw.keyword_id,candidates):pickResponse(cat);
+     if(cat==="general"||cat==="creative"||cat==="game"||cat==="tech"||cat==="life")reply+=" 話題は「"+kw.keyword+"」だね。知りたい範囲や条件を絞ると、もっと具体的に整理できるよ。";
+   }
    runtime.shortMemory.push({text:input,topic:kw.keyword,time:Date.now()});
    runtime.shortMemory=runtime.shortMemory.slice(-20);
    save();renderStatus();return reply;
