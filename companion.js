@@ -63,7 +63,7 @@ function switchBundle(id){
   runtime.shortMemory=stored?.shortMemory?[...stored.shortMemory]:[];
   runtime.longMemory=stored?.longMemory?[...stored.longMemory]:[];
   runtime.messages=stored?.messages?[...stored.messages]:[];
-  save();renderHistory();renderStatus();
+  save();renderHistory();renderStatus();if($("nx-dictionary-list"))renderDictionary();
  }
 }
 
