@@ -1,7 +1,7 @@
 /* NEXUS rule-based companion engine. No AI APIs, no result scraping. */
 (()=>{"use strict";
 const $=id=>document.getElementById(id);
-const STORE="nexus-companion-v2",DATA="nexus-dialogue-bundles-v1";
+const STORE="nexus-companion-v2",DATA="nexus-dialogue-bundles-v2",LEGACY_DATA="nexus-dialogue-bundles-v1";
 const norm=s=>String(s||"").normalize("NFKC").toLowerCase().replace(/[！!？?。、，,.・…〜～ー\-＿_「」『』（）()［］\[\]{}"'`]/g,"").replace(/\s+/g,"").trim();
 const esc=s=>String(s??"");
 const baseWords=("おはよう おはよ こんにちは こんばんは おやすみ ただいま おかえり ありがとう ありがと 感謝 ごめん ごめんなさい すみません 助かった 疲れ しんどい つらい 不安 悩み 心配 寂しい 眠い 休憩 元気 楽しい 嬉しい 悲しい 怒り イライラ 暇 雑談 話そう 聞いて 相談 質問 教えて 説明 解説 意味 理由 なぜ どうして 仕組み 方法 手順 考え 意見 どう思う おすすめ 比較 どっち 選ぶ アイデア 企画 発想 創作 小説 物語 キャラ キャラクター 設定 世界観 シナリオ 名前 デザイン 画像 イラスト 音楽 映画 アニメ 漫画 本 読書 ゲーム 攻略 勝率 麻雀 スロット パチスロ TRPG クトゥルフ 仕事 学校 勉強 課題 宿題 資料 開発 コード プログラム JavaScript HTML CSS Python アプリ バグ エラー GitHub 更新 公開 デプロイ Web ブラウザ Android Windows 通知 設定 データ 保存 バックアップ Excel エクセル JSON ファイル フォルダ 予定 スケジュール タスク やること 締切 期限 今日 明日 昨日 朝 昼 夜 深夜 今週 来週 時間 日付 天気 雨 雪 気温 ニュース 最新 調べて 検索 Google グーグル 科学 宇宙 歴史 地理 社会 経済 政治 文化 日本語 英語 翻訳 文法 数学 計算 統計 確率 物理 化学 生物 健康 睡眠 食事 運動 旅行 電車 車 料理 買い物 価格 節約 お金 安全 注意 方法 目標 習慣 集中 休憩 失敗 成功 改善 修正 更新 友達 家族 人間関係 心理 哲学 倫理 法律 ルール 文章 メール メッセージ 会話 口調 語尾 敬語 冗談 質問箱 記憶 復習 要約 構成 校正 表現 語彙 発音 発表 資料 面接 キャリア チーム プロジェクト 設計 テスト 品質 セキュリティ プライバシー パスワード 権利 著作権 ライセンス リポジトリ コミット ブランチ バージョン ログ デバッグ 最適化 UI UX レイアウト ボタン フォーム インポート エクスポート CSV PDF Markdown 容量 キャッシュ オフライン オンライン AI 人工知能 自動化 関数 変数 配列 条件分岐 ループ イベント タイマー リマインダー アラーム カレンダー 優先度 完了 未完了 進捗 モチベーション 日記 メモ ノート").split(/\s+/);
@@ -37,8 +37,26 @@ const generatedResponses=(()=>{const open=["なるほど。","ふむ、そこが
 const defaultBundle={schemaVersion:"1.0",bundleId:"NEXUS_RION_BUILTIN",character:{id:"CHAR_RION",name:"リオン",personality:"親しみやすい。観察力があり、少し皮肉っぽいが根は親切。",firstPerson:"僕",userCall:"きみ",tone:"casual",endingStyle:"soft",defaultAffection:0,greeting:"よし、今日も一緒に頑張ろうか。まずは何から話そう？"},keywords:generatedKeywords.map((keyword,i)=>({keyword_id:"KW_BUILTIN_"+String(i+1).padStart(3,"0"),category:categoryFor(keyword),keyword,synonyms:"",priority:10,match_type:"contains",enabled:true})),responses:generatedResponses,priorityPhrases:priority.map((p,i)=>({phrase_id:"PH_BUILTIN_"+i,intent:p.intent,canonical_text:p.keys.split(",")[0],accepted_variants:p.keys,priority:100-i,enabled:true})),events:[],flags:[{flag_id:"FLAG_FIRST_GREETING",flag_name:"初回挨拶",default_value:false},{flag_id:"FLAG_HEARD_WORRY",flag_name:"悩みを聞いた",default_value:false}],conditions:[],settings:{reminderMinutes:5,searchBaseUrl:"https://www.google.com/search?q=",noAi:true,searchOnlyOpensSite:true}};
 function categoryFor(w){if(/おは|こんにちは|こんばんは/.test(w))return"greeting";if(/疲|不安|悩|心配|寂|眠|悲/.test(w))return"mood";if(/創作|小説|物語|キャラ|設定|世界観|シナリオ|イラスト/.test(w))return"creative";if(/ゲーム|攻略|勝率|麻雀|スロット|TRPG|クトゥルフ/.test(w))return"game";if(/コード|プログラム|JavaScript|HTML|CSS|Python|アプリ|バグ|エラー|GitHub|デプロイ|Excel|JSON/.test(w))return"tech";if(/予定|タスク|やること|締切|期限|スケジュール/.test(w))return"life";if(/検索|調べ|Google|ニュース|天気/.test(w))return"search";return"general"}
 let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||"{}")}catch{}
-let bundles=[];try{bundles=JSON.parse(localStorage.getItem(DATA)||"[]")}catch{}
-if(!Array.isArray(bundles)||!bundles.length)bundles=[defaultBundle];
+let bundles=[];
+try{
+ const current=JSON.parse(localStorage.getItem(DATA)||"null");
+ if(Array.isArray(current)&&current.length){
+  bundles=current;
+ }else{
+  const legacy=JSON.parse(localStorage.getItem(LEGACY_DATA)||"[]");
+  if(Array.isArray(legacy)&&legacy.length){
+   // One-time dictionary reset: preserve character profiles/settings, clear all old dictionary entries.
+   bundles=legacy.map(b=>({...b,keywords:[],responses:[],priorityPhrases:[]}));
+  }else{
+   bundles=[{...defaultBundle,keywords:[],responses:[],priorityPhrases:[]}];
+  }
+  localStorage.setItem(DATA,JSON.stringify(bundles));
+ }
+}catch{
+ bundles=[{...defaultBundle,keywords:[],responses:[],priorityPhrases:[]}];
+ try{localStorage.setItem(DATA,JSON.stringify(bundles))}catch{}
+}
+if(!bundles.length)bundles=[{...defaultBundle,keywords:[],responses:[],priorityPhrases:[]}];
 let activeId=saved.activeId||bundles[0].character.id;
 let runtime={messages:Array.isArray(saved.messages)?saved.messages:[],affection:Number(saved.affection)||0,mood:saved.mood||"ふつう",flags:saved.flags||{},lastResponses:saved.lastResponses||{},lastTopic:saved.lastTopic||"",shortMemory:Array.isArray(saved.shortMemory)?saved.shortMemory:[],longMemory:Array.isArray(saved.longMemory)?saved.longMemory:[],reminders:!!saved.reminders};
 const active=()=>bundles.find(b=>b.character.id===activeId)||bundles[0];
