@@ -216,7 +216,7 @@ $("nx-form").onsubmit=e=>{e.preventDefault();const input=$("nx-input").value.tri
 $("nx-google").onclick=()=>google($("nx-input").value.trim()||runtime.lastTopic||"");
 $("nx-notify").onclick=async()=>{runtime.reminders=!runtime.reminders;if(runtime.reminders&&"Notification"in window&&Notification.permission==="default"){const p=await Notification.requestPermission();if(p!=="granted")runtime.reminders=false}save();renderStatus();toast(runtime.reminders?"5分ごとの声かけを有効にしました":"声かけをオフにしました")};
 $("nx-clear").onclick=()=>{if(confirm("会話履歴を消去しますか？")){runtime.messages=[];renderHistory();save()}};
-$("nx-select").onchange=()=>switchBundle($("nx-select").value);
+$("nx-select").onchange=()=>{switchBundle($("nx-select").value);renderDictionary()};
 function readRows(wb,sheet){const ws=wb.Sheets[sheet];return ws?window.XLSX.utils.sheet_to_json(ws,{defval:""}):[]}
 function enabledRow(v){return v===""||v===undefined||v===null||v===true||v===1||String(v).toLowerCase()==="true"}
 function parseWorkbook(wb){const chars=readRows(wb,"03_キャラクター");const enabled=chars.find(c=>enabledRow(c.enabled))||chars[0];if(!enabled||!enabled.character_id||!enabled.display_name)throw Error("03_キャラクターに character_id / display_name が必要です");const cid=String(enabled.character_id);const pick=(sheet)=>readRows(wb,sheet).filter(r=>enabledRow(r.enabled)).filter(r=>!r.character_id||r.character_id===cid||r.character_id==="*"||r.character_id==="CHAR_RION").map(r=>({...r,character_id:(!r.character_id||r.character_id==="*"||r.character_id==="CHAR_RION")?cid:r.character_id}));return{schemaVersion:"1.0",bundleId:"IMPORT_"+cid,character:{id:cid,name:String(enabled.display_name),personality:String(enabled.personality||""),firstPerson:String(enabled.first_person||"僕"),userCall:String(enabled.user_call||"きみ"),tone:String(enabled.tone||"casual"),endingStyle:String(enabled.ending_style||"soft"),defaultAffection:Number(enabled.default_affection)||0,greeting:"こんにちは。今日は何を話そう？"},keywords:pick("01_単語辞書"),responses:pick("02_定型文"),priorityPhrases:pick("08_最優先フレーズ"),events:pick("04_イベント一覧"),flags:readRows(wb,"05_フラグ定義").filter(r=>enabledRow(r.enabled)),conditions:readRows(wb,"06_条件セット").filter(r=>enabledRow(r.enabled)),settings:{reminderMinutes:5,searchBaseUrl:"https://www.google.com/search?q=",noAi:true,searchOnlyOpensSite:true}}}
@@ -251,13 +251,6 @@ function parseTaggedDictionaryText(text,filename){
 }
 function mergeKeywordRows(target,rows){const map=new Map((target.keywords||[]).map(k=>[String(k.keyword||"").normalize("NFKC").toLowerCase(),k]));const ids=new Set(Array.from(map.values()).map(k=>String(k.keyword_id||"")).filter(Boolean));let added=0,updated=0;for(const row of rows){const key=String(row.keyword||"").normalize("NFKC").toLowerCase();if(!key)continue;const prior=map.get(key);if(prior){map.set(key,{...prior,...row,keyword_id:prior.keyword_id||row.keyword_id});updated++}else{let next={...row},base=String(next.keyword_id||"KW_IMPORTED"),candidate=base,n=2;while(ids.has(candidate))candidate=base+"_"+(n++);next.keyword_id=candidate;ids.add(candidate);map.set(key,next);added++}}target.keywords=Array.from(map.values());return{added,updated,total:target.keywords.length}}
 function notifyImported(bundle){window.dispatchEvent(new CustomEvent("nexus:character-imported",{detail:{id:bundle.character.id,name:bundle.character.name,style:bundle.character.personality||"",tone:bundle.character.tone||"",greeting:bundle.character.greeting||"こんにちは。今日は何を話そう？"}}))}
-function syncChatCharacter(){
- const el=$("chatCharacter");
- if(el&&window.NEXUSCompanion&&typeof window.NEXUSCompanion.useCharacter==="function"){
-  const name=el.options[el.selectedIndex]?.text||"リオン";
-  window.NEXUSCompanion.useCharacter({id:el.value,name});
- }
-}
 function dictionaryText(bundle){
  const responses=new Map((bundle.responses||[]).map(r=>[String(r.response_id||""),r]));
  const rows=[];
@@ -290,11 +283,11 @@ function renderDictionary(){
  }
  list.append(frag);
 }
-$("nx-import").onclick=()=>{syncChatCharacter();$("nx-data-file").click()};
+$("nx-import").onclick=()=>{$("nx-data-file").click()};
 $("nx-data-file").onchange=async e=>{
  const files=Array.from(e.target.files||[]);if(!files.length)return;
  try{
-  syncChatCharacter();
+  
   const mergedRows=[],mergedResponses=[],warnings=[],loaded=[];
   for(const f of files){
    if(!/\.txt$/i.test(f.name))throw Error("読み込めるのは .txt 辞書ファイルのみです。");
@@ -317,13 +310,13 @@ $("nx-data-file").onchange=async e=>{
  finally{$("nx-data-file").value=""}
 };
 $("nx-export").onclick=()=>{
- syncChatCharacter();
+ 
  const text=dictionaryText(active()),blob=new Blob([text],{type:"text/plain;charset=utf-8"});
  const url=URL.createObjectURL(blob),a=document.createElement("a");
  a.href=url;a.download=(active().character.name||"nexus")+"_dictionary.txt";a.click();
  setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
-$("nx-dictionary-refresh").onclick=()=>{syncChatCharacter();renderDictionary()};
+$("nx-dictionary-refresh").onclick=()=>{renderDictionary()};
 $("nx-dictionary-filter").oninput=renderDictionary;
 $("nx-memory").onclick=()=>{const items=runtime.longMemory.map((m,i)=>({...m,source:"long",sourceIndex:i})).concat(runtime.shortMemory.map((m,i)=>({...m,source:"short",sourceIndex:i}))).slice(-30);const body=items.map((m,i)=>(i+1)+". ["+(m.source==="long"?"長期":"短期")+"] "+new Date(m.time||Date.now()).toLocaleString()+" ["+(m.topic||"記録")+"] "+m.text).join("\n")||"記憶はまだありません。";alert("記憶一覧（最大30件）\n\n"+body);const cmd=prompt("操作を入力：S番号＝長期記憶に保存 / D番号＝その記憶を削除 / ALL＝記憶を全削除 / 空欄＝終了");if(!cmd)return;if(/^all$/i.test(cmd.trim())){runtime.shortMemory=[];runtime.longMemory=[];save();toast("記憶をすべて削除しました");return}const m=cmd.trim().match(/^([SD])(\d+)$/i);if(!m){toast("操作をキャンセルしました");return}const n=Number(m[2]),item=items[n-1];if(!item){toast("その番号の記憶はありません");return}if(m[1].toUpperCase()==="S"){if(item.source==="short")runtime.longMemory.push({text:item.text,topic:item.topic,time:item.time});else toast("その記憶はすでに長期記憶です");runtime.longMemory=runtime.longMemory.slice(-100);save();toast("長期記憶に保存しました")}else{if(item.source==="long")runtime.longMemory.splice(item.sourceIndex,1);else runtime.shortMemory.splice(item.sourceIndex,1);save();toast("記憶を削除しました")}}
 runtime.flags={...defaultFlags(active()),...runtime.flags};
