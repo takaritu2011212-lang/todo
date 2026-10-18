@@ -269,7 +269,7 @@ function dictionaryText(bundle){
   else if(!/^\\\\m\[[a-z]+\]/i.test(value))value="\\m[talk]"+value;
   rows.push(String(k.keyword||"").trim()+" "+value);
  }
- return "$"+String(bundle.character?.name||"NEXUS")+"辞書#\\n"+rows.join("\\n")+"\\n";
+ return "$"+String(bundle.character?.name||"NEXUS")+"辞書#\n"+rows.join("\n")+"\n";
 }
 function renderDictionary(){
  const list=$("nx-dictionary-list"),summary=$("nx-dictionary-summary"),filter=$("nx-dictionary-filter");
@@ -310,10 +310,10 @@ $("nx-data-file").onchange=async e=>{
    else{(active().responses||(active().responses=[])).push({...r,character_id:active().character.id});responseAdded++}
   }
   save();renderHistory();renderStatus();renderDictionary();
-  let msg="TXT読込完了\\n"+loaded.length+"ファイル\\n追加："+stats.added+"件 / 更新："+stats.updated+"件\\n辞書合計："+stats.total+"件";
-  if(warnings.length)msg+="\\n\\n読み飛ばした行："+warnings.length+"行\\n"+warnings.slice(0,20).join("\\n")+(warnings.length>20?"\\nほか "+(warnings.length-20)+"行":"");
+  let msg="TXT読込完了\n"+loaded.length+"ファイル\n追加："+stats.added+"件 / 更新："+stats.updated+"件\n辞書合計："+stats.total+"件";
+  if(warnings.length)msg+="\n\n読み飛ばした行："+warnings.length+"行\n"+warnings.slice(0,20).join("\n")+(warnings.length>20?"\nほか "+(warnings.length-20)+"行":"");
   alert(msg);
- }catch(err){alert("読み込みできませんでした。\\n"+(err.message||err))}
+ }catch(err){alert("読み込みできませんでした。\n"+(err.message||err))}
  finally{$("nx-data-file").value=""}
 };
 $("nx-export").onclick=()=>{
