@@ -13,7 +13,7 @@ const priority=[
 {intent:"thanks",keys:"ありがとう,ありがと,ありがとー,感謝,助かった,サンキュー",cat:"thanks",replies:["どういたしまして。役に立てたならよかった。","いつでも。僕は君の相棒だからね。","感謝されるほどでもないよ。……いや、少しは嬉しいけど。"]},
 {intent:"apology",keys:"ごめん,ごめんなさい,すみません,申し訳ない,悪かった",cat:"apology",replies:["気にしすぎなくていいよ。次にどうするか考えよう。","大丈夫。謝れたなら、あとは必要なところを直せばいい。","受け取ったよ。ここで切り替えていこう。"]},
 {intent:"status",keys:"ステータス,好感度,今の状態,関係性",action:"status",cat:"status",replies:["今の状態を表示するね。"]},
-{intent:"help",keys:"ヘルプ,使い方,何ができる,機能一覧",action:"help",cat:"help",replies:["僕とは雑談、創作、ゲーム、予定整理などを話せるよ。Excel辞書の読み込みやJSON書き出しは下のボタンから。検索はサイトを開くだけで、結果を取得・要約したりはしないよ。"]},
+{intent:"help",keys:"ヘルプ,使い方,何ができる,機能一覧",action:"help",cat:"help",replies:["僕とは雑談、創作、ゲーム、予定整理などを話せるよ。TXT辞書の読み込みと書き出しは会話タブから。検索はサイトを開くだけで、結果を取得・要約したりはしないよ。"]},
 {intent:"search",keys:"検索して,グーグルで,googleで,調べて,検索を開いて",action:"search",cat:"search",replies:["検索サイトを開くね。結果はブラウザ側で確認して。"]},
 {intent:"todo",keys:"タスク,やること,未完了,今日の仕事",action:"tasks",cat:"life",replies:["タスクを確認するね。"]},
 {intent:"schedule",keys:"予定,スケジュール,カレンダー",action:"schedule",cat:"life",replies:["予定を確認するね。"]},
@@ -123,7 +123,7 @@ function responseById(id){
  return (active().responses||[]).find(r=>String(r.response_id||"")===String(id)&&eligibleResponse(r))||null;
 }
 function google(q){const query=String(q||"").trim();if(!query)return;const url=(active().settings?.searchBaseUrl||"https://www.google.com/search?q=")+encodeURIComponent(query);window.open(url,"_blank","noopener,noreferrer")}
-function doAction(action,input){if(action==="status"){renderStatus();return"好感度や関係段階は上部に表示しているよ。"}if(action==="help")return"僕とは雑談、創作、ゲーム、予定整理などを話せるよ。Excel取込・JSON書出しは下のボタンから。AI連携はなく、検索はサイトを開くだけだよ。";if(action==="search"){google(input.replace(/検索して|検索を開いて|検索|グーグルで|googleで|調べて|調べる|調査して/ig,"").trim()||runtime.lastTopic||"");return"検索サイトを開いたよ。結果の取得や要約はしていないから、ブラウザで確認してね。"}if(action==="tasks"){const n=document.querySelectorAll("#taskList .item").length;return"タスク画面で確認してみて。登録内容は既存のタスク管理に保存されているよ。"}if(action==="schedule")return"予定画面で確認できるよ。予定を一緒に整理するなら、何をいつまでにするか教えて。";return""}
+function doAction(action,input){if(action==="status"){renderStatus();return"好感度や関係段階は上部に表示しているよ。"}if(action==="help")return"僕とは雑談、創作、ゲーム、予定整理などを話せるよ。TXT辞書の読み込みと書き出しは会話タブから。AI連携はなく、検索はサイトを開くだけだよ。";if(action==="search"){google(input.replace(/検索して|検索を開いて|検索|グーグルで|googleで|調べて|調べる|調査して/ig,"").trim()||runtime.lastTopic||"");return"検索サイトを開いたよ。結果の取得や要約はしていないから、ブラウザで確認してね。"}if(action==="tasks"){const n=document.querySelectorAll("#taskList .item").length;return"タスク画面で確認してみて。登録内容は既存のタスク管理に保存されているよ。"}if(action==="schedule")return"予定画面で確認できるよ。予定を一緒に整理するなら、何をいつまでにするか教えて。";return""}
 function applyEvents(triggerType,triggerValue){
  const b=active();
  (b.events||[]).filter(ev=>ev.enabled!==false&&String(ev.enabled).toLowerCase()!=="false"&&(!ev.character_id||ev.character_id==="*"||ev.character_id===b.character.id)&&String(ev.trigger_type||"").toLowerCase()===String(triggerType).toLowerCase()&&(!ev.trigger_value||String(ev.trigger_value)===String(triggerValue))&&conditionPass(ev.condition_id,ev.condition_expr_override)).forEach(ev=>{
@@ -210,13 +210,11 @@ function respond(input){
  if(EXPRESSION_TAGS.includes(tag))window.dispatchEvent(new CustomEvent("nexus:expression",{detail:{tag}}));
  return String(raw).slice(m[0].length).trim();
 }
-$("nexus-mascot-toggle").onclick=()=>{$("nexus-mascot-panel").classList.toggle("open");if($("nexus-mascot-panel").classList.contains("open"))$("nx-input").focus()};
-$("nx-close").onclick=()=>$("nexus-mascot-panel").classList.remove("open");
-$("nx-form").onsubmit=e=>{e.preventDefault();const input=$("nx-input").value.trim();if(!input)return;add(input,true);const reply=respond(input);add(reply);$("nx-speech").textContent=reply;$("nx-input").value=""};
+$("nx-form").onsubmit=e=>{e.preventDefault();const input=$("nx-input").value.trim();if(!input)return;add(input,true);const reply=respond(input);add(reply);$("nx-input").value="";$("nx-input").focus()};
 $("nx-google").onclick=()=>google($("nx-input").value.trim()||runtime.lastTopic||"");
 $("nx-notify").onclick=async()=>{runtime.reminders=!runtime.reminders;if(runtime.reminders&&"Notification"in window&&Notification.permission==="default"){const p=await Notification.requestPermission();if(p!=="granted")runtime.reminders=false}save();renderStatus();toast(runtime.reminders?"5分ごとの声かけを有効にしました":"声かけをオフにしました")};
 $("nx-clear").onclick=()=>{if(confirm("会話履歴を消去しますか？")){runtime.messages=[];renderHistory();save()}};
-$("nx-select").onchange=()=>{switchBundle($("nx-select").value);renderDictionary()};
+
 function readRows(wb,sheet){const ws=wb.Sheets[sheet];return ws?window.XLSX.utils.sheet_to_json(ws,{defval:""}):[]}
 function enabledRow(v){return v===""||v===undefined||v===null||v===true||v===1||String(v).toLowerCase()==="true"}
 function parseWorkbook(wb){const chars=readRows(wb,"03_キャラクター");const enabled=chars.find(c=>enabledRow(c.enabled))||chars[0];if(!enabled||!enabled.character_id||!enabled.display_name)throw Error("03_キャラクターに character_id / display_name が必要です");const cid=String(enabled.character_id);const pick=(sheet)=>readRows(wb,sheet).filter(r=>enabledRow(r.enabled)).filter(r=>!r.character_id||r.character_id===cid||r.character_id==="*"||r.character_id==="CHAR_RION").map(r=>({...r,character_id:(!r.character_id||r.character_id==="*"||r.character_id==="CHAR_RION")?cid:r.character_id}));return{schemaVersion:"1.0",bundleId:"IMPORT_"+cid,character:{id:cid,name:String(enabled.display_name),personality:String(enabled.personality||""),firstPerson:String(enabled.first_person||"僕"),userCall:String(enabled.user_call||"きみ"),tone:String(enabled.tone||"casual"),endingStyle:String(enabled.ending_style||"soft"),defaultAffection:Number(enabled.default_affection)||0,greeting:"こんにちは。今日は何を話そう？"},keywords:pick("01_単語辞書"),responses:pick("02_定型文"),priorityPhrases:pick("08_最優先フレーズ"),events:pick("04_イベント一覧"),flags:readRows(wb,"05_フラグ定義").filter(r=>enabledRow(r.enabled)),conditions:readRows(wb,"06_条件セット").filter(r=>enabledRow(r.enabled)),settings:{reminderMinutes:5,searchBaseUrl:"https://www.google.com/search?q=",noAi:true,searchOnlyOpensSite:true}}}
@@ -352,5 +350,5 @@ window.NEXUSCompanion={
   getBundle:()=>JSON.parse(JSON.stringify(active()))
 };
 
-let lastNudge=Date.now();setInterval(()=>{if(!runtime.reminders||document.visibilityState!=="visible"||Date.now()-lastNudge<295000)return;lastNudge=Date.now();const lines=["少し休憩する？ 目と肩を休めるのも仕事のうちだよ。","何か考え中なら、要点を一つだけメモしておくといいよ。","5分ごとの生存確認。必要なら話してね。","水分補給や軽い伸びを忘れずに。人間はメンテナンスが必要だからね。","頭が散らかってきたら、今やることを一つに絞ろう。"];const msg=lines[Math.floor(Math.random()*lines.length)];$("nx-speech").textContent=msg;if("Notification"in window&&Notification.permission==="granted"&&document.visibilityState==="visible")new Notification("NEXUS / "+active().character.name,{body:msg})},30000);
+let lastNudge=Date.now();setInterval(()=>{if(!runtime.reminders||document.visibilityState!=="visible"||Date.now()-lastNudge<295000)return;lastNudge=Date.now();const lines=["少し休憩する？ 目と肩を休めるのも仕事のうちだよ。","何か考え中なら、要点を一つだけメモしておくといいよ。","5分ごとの生存確認。必要なら話してね。","水分補給や軽い伸びを忘れずに。人間はメンテナンスが必要だからね。","頭が散らかってきたら、今やることを一つに絞ろう。"];const msg=lines[Math.floor(Math.random()*lines.length)];add(msg);if("Notification"in window&&Notification.permission==="granted"&&document.visibilityState==="visible")new Notification("NEXUS / "+active().character.name,{body:msg})},30000);
 })();
